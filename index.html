@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Leitor E-book - API System Frontend</title>
+    <style>
+        /* * RAW CSS - TEMA DARK MATTE (AZUL/VERDE) */
+        :root {
+            --bg-body: #0f1216;
+            --bg-sidebar: #090b0e;
+            --bg-card: #161b22;
+            --bg-modal: rgba(0, 0, 0, 0.85); /* Fundo escuro do modal */
+            
+            --text-main: #c9d1d9;
+            --text-muted: #8b949e;
+            
+            --accent-green: #3fb950;
+            --accent-green-dim: #238636; 
+            --accent-blue: #58a6ff;
+            --accent-blue-dim: #1f6feb;
+            --accent-red: #f85149;
+            --accent-warning: #d29922;
+
+            --border-color: #30363d;
+            --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+            --font-read: "Georgia", "Cambria", "Times New Roman", serif;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            background-color: var(--bg-body);
+            color: var(--text-main);
+            font-family: var(--font-ui);
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* SIDEBAR */
+        aside {
+            width: 300px;
+            background-color: var(--bg-sidebar);
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            flex-shrink: 0;
+        }
+
+        .sidebar-header { padding: 1.5rem; border-bottom: 1px solid var(--border-color); }
+        .sidebar-header h1 { font-size: 1.2rem; color: var(--accent-blue); font-weight: 600; letter-spacing: 0.5px; }
+        .sidebar-header p { font-size: 0.8rem; color: var(--text-muted); margin-top: 5px; }
+        
+        .test-mode-badge {
+            font-size: 0.7rem; color: var(--accent-warning); border: 1px solid var(--accent-warning);
+            padding: 2px 6px; border-radius: 4px; margin-top: 0.5rem; display: inline-block; text-transform: uppercase;
+        }
+
+        #chapter-list { list-style: none; overflow-y: auto; flex-grow: 1; padding: 1rem 0; }
+
+        .chapter-item {
+            padding: 0.8rem 1.5rem; cursor: pointer; border-left: 3px solid transparent;
+            transition: all 0.2s ease; font-size: 0.95rem; color: var(--text-muted);
+        }
+        .chapter-item:hover { background-color: rgba(56, 139, 253, 0.1); color: var(--text-main); }
+        .chapter-item.active {
+            border-left-color: var(--accent-green); background-color: rgba(46, 160, 67, 0.1);
+            color: var(--text-main); font-weight: 500;
+        }
+
+        .status-msg { padding: 1rem 1.5rem; font-size: 0.85rem; color: var(--text-muted); font-style: italic; }
+        .error-msg { color: var(--accent-red); padding: 1rem 1.5rem; font-size: 0.85rem; }
+
+        /* MAIN CONTENT */
+        main { flex-grow: 1; display: flex; flex-direction: column; position: relative; }
+
+        .toolbar {
+            height: 60px; display: flex; align-items: center; justify-content: space-between;
+            padding: 0 2rem; background-color: rgba(15, 18, 22, 0.95);
+            border-bottom: 1px solid var(--border-color); backdrop-filter: blur(5px); z-index: 10;
+        }
+
+        .current-chapter-title { font-size: 0.9rem; color: var(--accent-green); text-transform: uppercase; letter-spacing: 1px; font-weight: bold; }
+
+        #reader-container { flex-grow: 1; overflow-y: auto; padding: 2rem; scroll-behavior: smooth; }
+
+        .prose {
+            max-width: 750px; margin: 0 auto; font-family: var(--font-read); font-size: 1.15rem;
+            line-height: 1.8; color: var(--text-main); padding-bottom: 100px; white-space: pre-line; 
+        }
+
+        .prose h2 { font-family: var(--font-ui); color: var(--accent-blue); margin-bottom: 1.5rem; font-size: 2rem; line-height: 1.2; margin-top: 1rem; }
+        .prose h3 {
+            font-family: var(--font-ui); color: var(--accent-green); font-size: 1.4rem; font-weight: normal;
+            margin-top: 2rem; margin-bottom: 1rem; border-bottom: 1px solid rgba(48, 54, 61, 0.5); padding-bottom: 0.5rem;
+        }
+        .prose p { margin-bottom: 1.5rem; }
+        .prose code { background-color: #252a31; padding: 2px 6px; border-radius: 4px; font-family: monospace; font-size: 0.9em; color: var(--accent-green); }
+
+        /* MACRO LINKS */
+        .macro-link {
+            color: var(--accent-blue); border-bottom: 1px dashed var(--accent-blue-dim);
+            cursor: pointer; transition: all 0.2s;
+        }
+        .macro-link:hover { color: var(--accent-green); border-bottom-color: var(--accent-green); background-color: rgba(88, 166, 255, 0.1); }
+        
+        .content-loader {
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            height: 300px; color: var(--text-muted); font-style: italic;
+        }
+
+        .nav-controls {
+            display: flex; justify-content: space-between; margin-top: 4rem;
+            padding-top: 2rem; border-top: 1px solid var(--border-color);
+        }
+
+        button {
+            background-color: transparent; border: 1px solid var(--border-color); color: var(--text-main);
+            padding: 0.8rem 1.5rem; border-radius: 6px; cursor: pointer; font-family: var(--font-ui); font-size: 0.9rem;
+            transition: all 0.2s; display: flex; align-items: center; gap: 8px;
+        }
+        button:hover:not(:disabled) { border-color: var(--accent-green); color: var(--accent-green); background-color: rgba(63, 185, 80, 0.05); }
+        button:disabled { opacity: 0.3; cursor: not-allowed; border-color: transparent; }
+        
+        /* --- DYNAMIC MODAL SYSTEM --- */
+        
+        /* Wrapper para o modal (Fundo Escuro) */
+        .modal-wrapper {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background-color: var(--bg-modal); 
+            /* Z-index será definido dinamicamente via JS para empilhamento */
+            backdrop-filter: blur(2px);
+            display: flex; align-items: center; justify-content: center;
+            opacity: 0; transition: opacity 0.3s ease;
+        }
+        .modal-wrapper.visible { opacity: 1; }
+
+        /* Container do Conteúdo Padrão (Texto) */
+        .modal-content {
+            background-color: var(--bg-card); width: 90%; max-width: 800px; max-height: 85vh;
+            border: 1px solid var(--border-color); border-radius: 8px; 
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            display: flex; flex-direction: column; 
+            transform: scale(0.95); transition: transform 0.3s ease;
+        }
+        .modal-wrapper.visible .modal-content { transform: scale(1); }
+
+        /* MODO IMAGEM: Box, mas ajustado para conteúdo visual */
+        .modal-content.image-mode {
+            width: auto; /* Deixa a largura se ajustar à imagem */
+            max-width: 90vw; /* Limite de tela */
+            background-color: var(--bg-card); /* Mantém o fundo do box */
+        }
+        
+        .modal-content.image-mode .modal-body { 
+            padding: 0; 
+            display: flex; 
+            justify-content: center; 
+            background-color: #000; /* Fundo preto atrás da imagem para contraste */
+            border-bottom-left-radius: 6px;
+            border-bottom-right-radius: 6px;
+            overflow: hidden;
+        }
+        
+        .modal-content.image-mode img {
+            display: block; 
+            max-width: 100%; 
+            max-height: 75vh; /* Altura máxima para não estourar a tela */
+            object-fit: contain; 
+        }
+
+        /* Elementos Internos do Modal */
+        .modal-header {
+            padding: 1rem 1.5rem; border-bottom: 1px solid var(--border-color);
+            display: flex; justify-content: space-between; align-items: center;
+            flex-shrink: 0; /* Header não encolhe */
+        }
+        .modal-title {
+            color: var(--accent-green); font-weight: bold; font-size: 0.9rem; text-transform: uppercase; letter-spacing: 1px;
+        }
+        .close-btn {
+            background: none; border: none; color: var(--text-muted); font-size: 1.5rem; cursor: pointer; padding: 0; line-height: 1;
+        }
+        .close-btn:hover { color: var(--accent-red); }
+        .modal-body { padding: 2rem; overflow-y: auto; flex-grow: 1; }
+
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: var(--bg-body); }
+        ::-webkit-scrollbar-thumb { background: #30363d; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #484f58; }
+
+        @media (max-width: 768px) {
+            body { flex-direction: column; }
+            aside { width: 100%; height: auto; max-height: 200px; border-right: none; border-bottom: 1px solid var(--border-color); }
+            .sidebar-header { padding: 1rem; }
+            #reader-container { padding: 1.5rem; }
+            .modal-content { width: 95%; height: 90vh; }
+            .modal-content.image-mode { max-width: 95vw; }
+        }
+    </style>
+</head>
+<body>
+
+    <aside>
+        <div class="sidebar-header">
+            <h1>DocReader v1.0</h1>
+            <p>API Integration Guide</p>
+            <div id="test-mode-indicator" class="test-mode-badge" style="display:none;">Test Mode</div>
+        </div>
+        <ul id="chapter-list"></ul>
+    </aside>
+
+    <main>
+        <div class="toolbar">
+            <span id="header-chapter-display" class="current-chapter-title">Inicializando...</span>
+            <div style="font-size: 0.8rem; color: var(--text-muted);">
+                Leitura Confortável
+            </div>
+        </div>
+
+        <div id="reader-container">
+            <div id="content-area" class="prose"></div>
+            <div class="nav-controls">
+                <button id="btn-prev" onclick="changeChapter(-1)">&#8592; Anterior</button>
+                <button id="btn-next" onclick="changeChapter(1)">Próximo &#8594;</button>
+            </div>
+        </div>
+    </main>
+
+    <!-- NENHUM MODAL ESTÁTICO AQUI - ELES SÃO CRIADOS DINAMICAMENTE -->
+
+    <script>
+        // --- CONFIG ---
+        const API_URL_INDEX = '/api/webio/book/index';
+        const API_URL_CONTENT = '/api/webio/book/content';
+        const API_URL_IMAGE_BASE = '/api/content/distribution/get?image=';
+        
+        let currentBookId = 'ealetra'; 
+        
+        const API_HEADERS = {
+            'Content-Type': 'application/json',
+            'ESAV-Auth': '8b1d636544064f7b8bb66478002c9cb6b08970dab41e3ec7012dd4ea69dfa8d727e06423b7706dfc4751550f5643355f13806fc5ca2b9384d2141b712ea0896f',
+            'ESAV-Token': 'e7d06394f4017fb0dd9467dca1e6379490d9ada40d7ec3b82f007f381c9a87aa83611a3034a51dd69cb0bba1ad2d5c35e589189477beeae25b9c391ff2530915'
+        };
+
+        // --- FALLBACK DATA ---
+        const FALLBACK_INDEX = [
+            { id: 900, title: "Teste: Formatação", fileId: "test_fmt" },
+            { id: 901, title: "Teste: Macros", fileId: "test_macro" },
+            { id: 902, title: "Teste: Mídia e Livros", fileId: "test_media" }
+        ];
+
+        const FALLBACK_CONTENT = {
+            "test_fmt": `***Validação de Títulos***
+            Texto normal para leitura.
+            *Validação de Subtítulo*
+            Texto do subtítulo.`,
+            
+            "test_macro": `***Macros***
+            Clique em ?server_box:Servidor? para abrir o modal.`,
+            
+            "server_box": `***Servidor***
+            Detalhes do servidor aqui.
+            Veja o diagrama de rede: [diagrama_v1.png:Ver Rede]`,
+            
+            "test_media": `***Imagens e Cascata***
+            1. Abra este texto ?server_box:Servidor?.
+            2. Dentro dele, clique na imagem.
+            3. Feche a imagem no X (volta para Servidor).
+            4. Feche Servidor no X (volta para cá).
+            5. Clique fora de tudo para fechar todos de uma vez.
+            
+            Mudar livro: !gemini_advanced:Ir para Avançado!.`
+        };
+
+        // --- STATE ---
+        let bookStructure = [];
+        let contentCache = {}; 
+        let currentIndex = 0;
+        let isTestMode = false;
+
+        async function init() {
+            const listElement = document.getElementById('chapter-list');
+            listElement.innerHTML = `<li class="status-msg">Carregando: ${currentBookId}...</li>`;
+
+            try {
+                const response = await fetch(API_URL_INDEX, {
+                    method: 'POST',
+                    headers: API_HEADERS,
+                    body: JSON.stringify({ book: currentBookId })
+                });
+
+                if (!response.ok) throw new Error(`Status ${response.status}`);
+                const data = await response.json();
+                
+                if (data.index && Array.isArray(data.index)) {
+                    bookStructure = data.index;
+                    isTestMode = false;
+                    document.getElementById('test-mode-indicator').style.display = 'none';
+                } else {
+                     throw new Error("Índice inválido.");
+                }
+
+            } catch (error) {
+                console.warn("API Fail. Test Mode.", error);
+                bookStructure = FALLBACK_INDEX;
+                isTestMode = true;
+                document.getElementById('test-mode-indicator').style.display = 'inline-block';
+                listElement.innerHTML = ''; 
+            }
+            
+            if (bookStructure.length === 0) {
+                 listElement.innerHTML = '<li class="status-msg">Vazio.</li>';
+                 return;
+            }
+            
+            renderSidebar();
+            loadChapterByIndex(0);
+        }
+
+        async function switchBook(newBookId) {
+            currentBookId = newBookId;
+            bookStructure = [];
+            contentCache = {};
+            currentIndex = 0;
+            document.getElementById('content-area').innerHTML = '';
+            document.getElementById('header-chapter-display').textContent = 'Carregando...';
+            // Fecha modais abertos ao trocar de livro
+            closeAllModals(); 
+            await init();
+        }
+
+        function renderSidebar() {
+            const listElement = document.getElementById('chapter-list');
+            listElement.innerHTML = '';
+            bookStructure.forEach((chapter, index) => {
+                const li = document.createElement('li');
+                li.className = 'chapter-item';
+                li.textContent = chapter.title || `Cap ${index + 1}`;
+                li.onclick = () => loadChapterByIndex(index);
+                li.id = `sidebar-item-${index}`;
+                listElement.appendChild(li);
+            });
+        }
+
+        function formatRawText(rawText) {
+            if (!rawText) return "";
+
+            let processedText = rawText.replace(/\*\*\*(.*?)\*\*\*/g, '<h2>$1</h2>');
+            processedText = processedText.replace(/\*(.*?)\*/g, '<h3>$1</h3>');
+
+            processedText = processedText.replace(/\?(.*?):(.*?)\?/g, (match, id, text) => {
+                const safeId = id.replace(/'/g, "\\'");
+                const safeText = text.replace(/'/g, "\\'");
+                return `<span class="macro-link" onclick="openMacro('${safeId}', '${safeText}')">${text}</span>`;
+            });
+            
+            processedText = processedText.replace(/!(.*?):(.*?)\!/g, (match, id, text) => {
+                const safeId = id.replace(/'/g, "\\'");
+                return `<span class="macro-link" style="color:var(--accent-green)" onclick="switchBook('${safeId}')">${text}</span>`;
+            });
+
+            // Regex atualizada para capturar [arquivo:titulo]
+            processedText = processedText.replace(/\[(.*?):(.*?)]/g, (match, filename, text) => {
+                const safeName = filename.replace(/'/g, "\\'");
+                const safeText = text.replace(/'/g, "\\'");
+                return `<span class="macro-link" onclick="openImage('${safeName}', '${safeText}')">📷 ${text}</span>`;
+            });
+
+            return processedText;
+        }
+
+        async function fetchContent(fileId) {
+            if (isTestMode) {
+                await new Promise(r => setTimeout(r, 200));
+                if (FALLBACK_CONTENT[fileId]) return FALLBACK_CONTENT[fileId];
+                throw new Error(`[Teste] 404: ${fileId}`);
+            }
+
+            const response = await fetch(API_URL_CONTENT, {
+                method: 'POST',
+                headers: API_HEADERS,
+                body: JSON.stringify({ 
+                    book: currentBookId,
+                    fileId: fileId 
+                })
+            });
+
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            return await response.text();
+        }
+
+        async function loadChapterByIndex(index) {
+            if (index < 0 || index >= bookStructure.length) return;
+            currentIndex = index;
+            const ch = bookStructure[index];
+            const fileId = ch.fileId;
+            
+            document.getElementById('header-chapter-display').textContent = ch.title || "Carregando...";
+            document.querySelectorAll('.chapter-item').forEach(el => el.classList.remove('active'));
+            const activeItem = document.getElementById(`sidebar-item-${index}`);
+            if (activeItem) activeItem.classList.add('active');
+            document.getElementById('reader-container').scrollTop = 0;
+
+            const contentArea = document.getElementById('content-area');
+            
+            if (contentCache[fileId]) {
+                contentArea.innerHTML = formatRawText(contentCache[fileId]);
+            } else {
+                contentArea.innerHTML = `<div class="content-loader"><p>Carregando...</p></div>`;
+                try {
+                    const txt = await fetchContent(fileId);
+                    contentCache[fileId] = txt;
+                    contentArea.innerHTML = formatRawText(txt);
+                } catch (error) {
+                    contentArea.innerHTML = `<div style="text-align:center; margin-top:3rem; color:var(--accent-red)">Erro: ${error.message}</div>`;
+                }
+            }
+            document.getElementById('btn-prev').disabled = (index === 0);
+            document.getElementById('btn-next').disabled = (index === bookStructure.length - 1);
+        }
+
+        function changeChapter(d) { loadChapterByIndex(currentIndex + d); }
+
+        // --- DYNAMIC MODAL SYSTEM (Cascata) ---
+
+        // Função Genérica para Criar e Empilhar Modais
+        function spawnModal(innerHtml, type = 'text', title = '') {
+            const existingModals = document.querySelectorAll('.modal-wrapper');
+            const zIndexBase = 1000 + (existingModals.length * 10);
+            
+            const wrapper = document.createElement('div');
+            wrapper.className = 'modal-wrapper';
+            wrapper.style.zIndex = zIndexBase;
+            
+            const content = document.createElement('div');
+            content.className = type === 'image' ? 'modal-content image-mode' : 'modal-content';
+            
+            // Header padrão para ambos os tipos agora
+            const headerHtml = `
+                <div class="modal-header">
+                    <span class="modal-title">${title}</span>
+                    <button class="close-btn" onclick="closeTopModal()">&times;</button>
+                </div>
+            `;
+
+            // Body
+            const bodyHtml = `<div class="modal-body ${type === 'text' ? 'prose' : ''}">${innerHtml}</div>`;
+
+            content.innerHTML = headerHtml + bodyHtml;
+
+            wrapper.appendChild(content);
+            document.body.appendChild(wrapper);
+
+            setTimeout(() => wrapper.classList.add('visible'), 10);
+
+            // Clicar no fundo fecha todos
+            wrapper.addEventListener('click', function(e) {
+                if (e.target === this) {
+                    closeAllModals();
+                }
+            });
+        }
+
+        function closeTopModal() {
+            const modals = document.querySelectorAll('.modal-wrapper');
+            if (modals.length > 0) {
+                const topModal = modals[modals.length - 1];
+                topModal.classList.remove('visible');
+                setTimeout(() => topModal.remove(), 300);
+            }
+        }
+
+        function closeAllModals() {
+            const modals = document.querySelectorAll('.modal-wrapper');
+            modals.forEach(m => {
+                m.classList.remove('visible');
+                setTimeout(() => m.remove(), 300);
+            });
+        }
+
+        // --- MACRO HANDLERS ---
+
+        async function openMacro(fileId, linkText) {
+            let htmlContent = '';
+            
+            if (contentCache[fileId]) {
+                htmlContent = formatRawText(contentCache[fileId]);
+            } else {
+                try {
+                    const txt = await fetchContent(fileId);
+                    contentCache[fileId] = txt;
+                    htmlContent = formatRawText(txt);
+                } catch (err) {
+                    htmlContent = `<p style="color:var(--accent-red); text-align:center">Erro: ${err.message}</p>`;
+                }
+            }
+            
+            spawnModal(htmlContent, 'text', linkText);
+        }
+
+        function openImage(filename, title) {
+            const url = `${API_URL_IMAGE_BASE}${currentBookId}:content:${filename}`;
+            const imgHtml = `<img src="${url}" onerror="this.parentNode.innerHTML='<p style=\\'color:#fff;text-align:center\\'>Erro imagem.</p>'">`;
+            const displayTitle = title || filename;
+            spawnModal(imgHtml, 'image', displayTitle);
+        }
+
+        init();
+    </script>
+</body>
+</html>
